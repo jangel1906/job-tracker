@@ -408,6 +408,8 @@
     let activeTab = 'tracker';
     let showForm = false;
     let newJob = { company: '', position: '', status: 'applied', notes: '', date: new Date().toISOString().split('T')[0] };
+    let editingId = null;
+    let editJob = { company: '', position: '', status: 'applied', notes: '', date: '' };
 
     const statusConfig = {
       applied: { label: 'Applied', dotClass: 'dot-blue', badgeClass: 'badge-blue', fillClass: 'fill-blue', barClass: 'bar-fill-blue' },
@@ -509,6 +511,46 @@
     function setTab(tab) { activeTab = tab; render(); }
     function toggleForm() { showForm = !showForm; render(); }
     function updateNewJob(field, value) { newJob[field] = value; }
+
+    function startEdit(id) {
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+      editingId = id;
+      editJob = {
+        company: entry.company || '',
+        position: entry.position || '',
+        status: entry.type,
+        notes: entry.notes || '',
+        date: entry.date
+      };
+      render();
+    }
+
+    function updateEditJob(field, value) { editJob[field] = value; }
+
+    function saveEdit() {
+      const index = entries.findIndex(e => e.id === editingId);
+      if (index === -1) return;
+
+      entries[index] = {
+        ...entries[index],
+        type: editJob.status,
+        company: editJob.company || null,
+        position: editJob.position || null,
+        notes: editJob.notes || null,
+        date: editJob.date
+      };
+
+      saveDataLocal(entries);
+      saveEntryToSupabase(entries[index]);
+      editingId = null;
+      render();
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      render();
+    }
 
     function render() {
       const app = document.getElementById('app');
@@ -713,7 +755,22 @@
                 </div>
               </div>
             ` : ''}
-            ${detailedEntries.length === 0 ? '<p class="text-muted text-center py-8">No detailed entries yet</p>' : detailedEntries.map(e => `
+            ${detailedEntries.length === 0 ? '<p class="text-muted text-center py-8">No detailed entries yet</p>' : detailedEntries.map(e =>
+              editingId === e.id ? `
+              <div class="form-area">
+                <input type="text" class="input" placeholder="Company name *" value="${editJob.company}" oninput="updateEditJob('company', this.value)">
+                <input type="text" class="input" placeholder="Position (optional)" value="${editJob.position}" oninput="updateEditJob('position', this.value)">
+                <select class="select" onchange="updateEditJob('status', this.value)">
+                  ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(s => `<option value="${s}" ${editJob.status === s ? 'selected' : ''}>${statusConfig[s].label}</option>`).join('')}
+                </select>
+                <textarea class="textarea" rows="2" placeholder="Notes" oninput="updateEditJob('notes', this.value)">${editJob.notes}</textarea>
+                <input type="date" class="input" value="${editJob.date}" onchange="updateEditJob('date', this.value)">
+                <div class="form-buttons">
+                  <button class="btn-success" onclick="saveEdit()">Save</button>
+                  <button class="btn-cancel" onclick="cancelEdit()">Cancel</button>
+                </div>
+              </div>
+            ` : `
               <div class="log-entry">
                 <div class="log-header">
                   <div>
@@ -724,7 +781,10 @@
                 </div>
                 <div class="log-date">${e.date}</div>
                 ${e.notes ? `<div class="log-notes">${e.notes}</div>` : ''}
-                <button class="btn-delete" onclick="deleteEntry(${e.id})">Delete</button>
+                <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                  <button class="btn-delete" onclick="startEdit(${e.id})" style="color: #3B82F6;">Edit</button>
+                  <button class="btn-delete" onclick="deleteEntry(${e.id})">Delete</button>
+                </div>
               </div>
             `).join('')}
           </div>
