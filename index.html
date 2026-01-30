@@ -492,6 +492,16 @@
       render();
     }
 
+    function addForCompany(id) {
+      const original = entries.find(e => e.id === id);
+      if (!original) return;
+      const entry = { id: Date.now(), type: 'applied', date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), company: original.company, position: original.position, notes: null };
+      entries.unshift(entry);
+      saveDataLocal(entries);
+      saveEntryToSupabase(entry);
+      render();
+    }
+
     function deleteEntry(id) {
       entries = entries.filter(e => e.id !== id);
       saveDataLocal(entries);
@@ -796,6 +806,7 @@
                 <div class="log-date">${e.date}</div>
                 ${e.notes ? `<div class="log-notes">${e.notes}</div>` : ''}
                 <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                  <button class="btn-delete" onclick="addForCompany(${e.id})" style="color: #10B981;">+ Applied</button>
                   <button class="btn-delete" onclick="startEdit(${e.id})" style="color: #3B82F6;">Edit</button>
                   <button class="btn-delete" onclick="deleteEntry(${e.id})">Delete</button>
                 </div>
