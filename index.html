@@ -136,6 +136,22 @@
     .sync-syncing { background: #DBEAFE; color: #2563EB; }
     .sync-offline { background: #FEE2E2; color: #DC2626; }
     .title-row { display: flex; justify-content: space-between; align-items: center; }
+
+    .auth-container { max-width: 24rem; margin: 2rem auto; padding: 1rem; }
+    .auth-card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 2rem; }
+    .auth-title { font-size: 1.5rem; font-weight: 700; color: #1F2937; text-align: center; margin-bottom: 0.5rem; }
+    .auth-subtitle { font-size: 0.875rem; color: #9CA3AF; text-align: center; margin-bottom: 1.5rem; }
+    .auth-error { background: #FEE2E2; color: #DC2626; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; margin-bottom: 1rem; }
+    .auth-success { background: #D1FAE5; color: #059669; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; margin-bottom: 1rem; }
+    .auth-toggle { text-align: center; margin-top: 1rem; font-size: 0.875rem; color: #6B7280; }
+    .auth-toggle a { color: #3B82F6; cursor: pointer; }
+    .auth-toggle a:hover { text-decoration: underline; }
+    .btn-full { width: 100%; padding: 0.75rem; background: #3B82F6; color: white; border: none; border-radius: 0.5rem; font-size: 1rem; font-weight: 500; cursor: pointer; }
+    .btn-full:active { background: #2563EB; }
+    .btn-full:disabled { background: #9CA3AF; cursor: not-allowed; }
+    .user-bar { background: white; border-bottom: 1px solid #E5E7EB; padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .user-email { font-size: 0.75rem; color: #6B7280; }
+    .btn-logout { background: none; border: none; color: #EF4444; font-size: 0.75rem; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -143,25 +159,26 @@
 
   <script>
     const STORAGE_KEY = 'job-tracker-data-v1';
-    const DEVICE_ID_KEY = 'job-tracker-device-id';
 
     // Supabase configuration
     const SUPABASE_URL = 'https://taauwsmpiplkrwenerab.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_9AOubR88F0nriAy4fksycg_YkSh5KbN';
     let supabaseClient = null;
 
-    // Generate or retrieve device ID
-    function getDeviceId() {
-      let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-      if (!deviceId) {
-        deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem(DEVICE_ID_KEY, deviceId);
-      }
-      return deviceId;
-    }
+    // Auth state
+    let currentUser = null;
+    let authMode = 'login'; // 'login' or 'signup'
+    let authEmail = '';
+    let authPassword = '';
+    let authError = '';
+    let authSuccess = '';
+    let authLoading = false;
 
-    const deviceId = getDeviceId();
     let syncStatus = 'offline';
+
+    function getUserId() {
+      return currentUser ? currentUser.id : null;
+    }
 
     function loadDataLocal() {
       try {
@@ -175,12 +192,12 @@
     }
 
     async function loadDataFromSupabase() {
-      if (!supabaseClient) return loadDataLocal();
+      if (!supabaseClient || !getUserId()) return loadDataLocal();
       try {
         const { data, error } = await supabaseClient
           .from('job_entries')
           .select('*')
-          .eq('device_id', deviceId)
+          .eq('device_id', getUserId())
           .order('timestamp', { ascending: false });
 
         if (error) throw error;
@@ -206,13 +223,13 @@
     }
 
     async function saveEntryToSupabase(entry) {
-      if (!supabaseClient) return;
+      if (!supabaseClient || !getUserId()) return;
       try {
         const { error } = await supabaseClient
           .from('job_entries')
           .upsert({
             id: entry.id,
-            device_id: deviceId,
+            device_id: getUserId(),
             type: entry.type,
             date: entry.date,
             timestamp: entry.timestamp,
@@ -231,13 +248,13 @@
     }
 
     async function deleteEntryFromSupabase(id) {
-      if (!supabaseClient) return;
+      if (!supabaseClient || !getUserId()) return;
       try {
         const { error } = await supabaseClient
           .from('job_entries')
           .delete()
           .eq('id', id)
-          .eq('device_id', deviceId);
+          .eq('device_id', getUserId());
 
         if (error) throw error;
         syncStatus = 'synced';
@@ -249,12 +266,12 @@
     }
 
     async function clearAllFromSupabase() {
-      if (!supabaseClient) return;
+      if (!supabaseClient || !getUserId()) return;
       try {
         const { error } = await supabaseClient
           .from('job_entries')
           .delete()
-          .eq('device_id', deviceId);
+          .eq('device_id', getUserId());
 
         if (error) throw error;
         syncStatus = 'synced';
@@ -264,19 +281,112 @@
       }
     }
 
+    // Auth functions
+    async function handleSignup() {
+      if (!supabaseClient || authLoading) return;
+      authError = '';
+      authSuccess = '';
+      authLoading = true;
+      render();
+
+      try {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email: authEmail,
+          password: authPassword
+        });
+        if (error) throw error;
+        authSuccess = 'Check your email to confirm your account!';
+        authEmail = '';
+        authPassword = '';
+      } catch (e) {
+        authError = e.message;
+      }
+      authLoading = false;
+      render();
+    }
+
+    async function handleLogin() {
+      if (!supabaseClient || authLoading) return;
+      authError = '';
+      authSuccess = '';
+      authLoading = true;
+      render();
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: authEmail,
+          password: authPassword
+        });
+        if (error) throw error;
+        currentUser = data.user;
+        authEmail = '';
+        authPassword = '';
+        entries = [];
+        saveDataLocal(entries);
+        syncStatus = 'syncing';
+        render();
+        loadDataFromSupabase().then(data => {
+          entries = data;
+          render();
+        });
+      } catch (e) {
+        authError = e.message;
+      }
+      authLoading = false;
+      render();
+    }
+
+    async function handleLogout() {
+      if (!supabaseClient) return;
+      await supabaseClient.auth.signOut();
+      currentUser = null;
+      entries = [];
+      saveDataLocal(entries);
+      syncStatus = 'offline';
+      render();
+    }
+
+    function setAuthMode(mode) {
+      authMode = mode;
+      authError = '';
+      authSuccess = '';
+      render();
+    }
+
+    function updateAuthEmail(value) { authEmail = value; }
+    function updateAuthPassword(value) { authPassword = value; }
+
     let entries = loadDataLocal();
 
     // Load Supabase library dynamically
     function initSupabase() {
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-      script.onload = function() {
+      script.onload = async function() {
         try {
           supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-          syncStatus = 'syncing';
-          render();
-          loadDataFromSupabase().then(data => {
-            entries = data;
+
+          // Check for existing session
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session) {
+            currentUser = session.user;
+            syncStatus = 'syncing';
+            render();
+            loadDataFromSupabase().then(data => {
+              entries = data;
+              render();
+            });
+          } else {
+            render();
+          }
+
+          // Listen for auth changes
+          supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (session) {
+              currentUser = session.user;
+            } else {
+              currentUser = null;
+            }
             render();
           });
         } catch (e) {
@@ -388,13 +498,43 @@
     function updateNewJob(field, value) { newJob[field] = value; render(); }
 
     function render() {
+      const app = document.getElementById('app');
+
+      // Show auth screen if not logged in
+      if (!currentUser) {
+        app.innerHTML = `
+          <div class="auth-container">
+            <div class="auth-card">
+              <div class="auth-title">Job Tracker</div>
+              <div class="auth-subtitle">${authMode === 'login' ? 'Sign in to sync across devices' : 'Create your account'}</div>
+              ${authError ? `<div class="auth-error">${authError}</div>` : ''}
+              ${authSuccess ? `<div class="auth-success">${authSuccess}</div>` : ''}
+              <input type="email" class="input" placeholder="Email" value="${authEmail}" oninput="updateAuthEmail(this.value)">
+              <input type="password" class="input" placeholder="Password" value="${authPassword}" oninput="updateAuthPassword(this.value)">
+              <button class="btn-full" onclick="${authMode === 'login' ? 'handleLogin()' : 'handleSignup()'}" ${authLoading ? 'disabled' : ''}>
+                ${authLoading ? 'Loading...' : (authMode === 'login' ? 'Sign In' : 'Sign Up')}
+              </button>
+              <div class="auth-toggle">
+                ${authMode === 'login'
+                  ? `Don't have an account? <a onclick="setAuthMode('signup')">Sign up</a>`
+                  : `Already have an account? <a onclick="setAuthMode('login')">Sign in</a>`}
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       const totals = getTotals();
       const dailyData = getDailyData();
       const monthlyData = getMonthlyData();
       const maxDaily = Math.max(...dailyData.map(([_, d]) => d.applied + d.callback + d.interview + d.offer + d.rejected), 1);
-      const app = document.getElementById('app');
-      
+
       let html = `
+        <div class="user-bar">
+          <span class="user-email">${currentUser.email}</span>
+          <button class="btn-logout" onclick="handleLogout()">Sign out</button>
+        </div>
         <div class="tabs">
           <div class="tabs-inner">
             ${['tracker', 'daily', 'monthly', 'log'].map(tab => `
