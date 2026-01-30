@@ -630,7 +630,20 @@
             <div class="section-title">Recent Activity</div>
             ${entries.length === 0 ? '<p class="text-muted text-center py-4">No entries yet</p>' : `
               <div class="activity-list">
-                ${entries.slice(0, 20).map(e => `
+                ${entries.slice(0, 20).map(e =>
+                  editingId === e.id ? `
+                  <div class="form-area" style="margin: 0.5rem 0;">
+                    <input type="text" class="input" placeholder="Company (optional)" value="${editJob.company}" oninput="updateEditJob('company', this.value)">
+                    <select class="select" onchange="updateEditJob('status', this.value)">
+                      ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(s => `<option value="${s}" ${editJob.status === s ? 'selected' : ''}>${statusConfig[s].label}</option>`).join('')}
+                    </select>
+                    <input type="date" class="input" value="${editJob.date}" onchange="updateEditJob('date', this.value)">
+                    <div class="form-buttons">
+                      <button class="btn-success" onclick="saveEdit()">Save</button>
+                      <button class="btn-cancel" onclick="cancelEdit()">Cancel</button>
+                    </div>
+                  </div>
+                ` : `
                   <div class="activity-item">
                     <div class="activity-left">
                       <span class="badge ${statusConfig[e.type].badgeClass}">${statusConfig[e.type].label}</span>
@@ -638,6 +651,7 @@
                     </div>
                     <div class="activity-right">
                       <span class="activity-date">${e.date}</span>
+                      <button class="btn-x" onclick="startEdit(${e.id})" style="color: #3B82F6;">✎</button>
                       <button class="btn-x" onclick="deleteEntry(${e.id})">×</button>
                     </div>
                   </div>
