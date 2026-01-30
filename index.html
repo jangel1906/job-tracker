@@ -141,15 +141,14 @@
 <body>
   <div id="app"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    const STORAGE_KEY = 'job-tracker-data-v1';
+    const DEVICE_ID_KEY = 'job-tracker-device-id';
+
     // Supabase configuration
     const SUPABASE_URL = 'https://taauwsmpiplkrwenerab.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_9AOubR88F0nriAy4fksycg_YkSh5KbN';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    const STORAGE_KEY = 'job-tracker-data-v1';
-    const DEVICE_ID_KEY = 'job-tracker-device-id';
+    let supabaseClient = null;
 
     // Generate or retrieve device ID
     function getDeviceId() {
@@ -162,7 +161,7 @@
     }
 
     const deviceId = getDeviceId();
-    let syncStatus = 'syncing';
+    let syncStatus = 'offline';
 
     function loadDataLocal() {
       try {
@@ -176,8 +175,9 @@
     }
 
     async function loadDataFromSupabase() {
+      if (!supabaseClient) return loadDataLocal();
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('job_entries')
           .select('*')
           .eq('device_id', deviceId)
@@ -206,8 +206,9 @@
     }
 
     async function saveEntryToSupabase(entry) {
+      if (!supabaseClient) return;
       try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
           .from('job_entries')
           .upsert({
             id: entry.id,
@@ -230,8 +231,9 @@
     }
 
     async function deleteEntryFromSupabase(id) {
+      if (!supabaseClient) return;
       try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
           .from('job_entries')
           .delete()
           .eq('id', id)
@@ -247,8 +249,9 @@
     }
 
     async function clearAllFromSupabase() {
+      if (!supabaseClient) return;
       try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
           .from('job_entries')
           .delete()
           .eq('device_id', deviceId);
@@ -263,11 +266,32 @@
 
     let entries = loadDataLocal();
 
-    // Load from Supabase on startup
-    loadDataFromSupabase().then(data => {
-      entries = data;
-      render();
-    });
+    // Load Supabase library dynamically
+    function initSupabase() {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      script.onload = function() {
+        try {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          syncStatus = 'syncing';
+          render();
+          loadDataFromSupabase().then(data => {
+            entries = data;
+            render();
+          });
+        } catch (e) {
+          console.error('Supabase init error:', e);
+          syncStatus = 'offline';
+          render();
+        }
+      };
+      script.onerror = function() {
+        console.error('Failed to load Supabase');
+        syncStatus = 'offline';
+        render();
+      };
+      document.head.appendChild(script);
+    }
     let activeTab = 'tracker';
     let showForm = false;
     let newJob = { company: '', position: '', status: 'callback', notes: '', date: new Date().toISOString().split('T')[0] };
@@ -558,6 +582,7 @@
     }
 
     render();
+    initSupabase();
   </script>
 </body>
 </html>
