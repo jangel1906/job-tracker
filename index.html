@@ -43,8 +43,11 @@
     .tracker-label { font-weight: 500; color: #374151; }
     .tracker-count { font-size: 1.5rem; font-weight: 700; color: #1F2937; width: 2.5rem; text-align: right; }
     
-    .btn-add { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: #3B82F6; color: white; border: none; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-add { width: 2rem; height: 2rem; border-radius: 50%; background: #3B82F6; color: white; border: none; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .btn-add:active { background: #2563EB; }
+    .btn-minus { width: 2rem; height: 2rem; border-radius: 50%; background: #E5E7EB; color: #6B7280; border: none; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-minus:active { background: #D1D5DB; }
+    .btn-minus:disabled { opacity: 0.3; cursor: not-allowed; }
     .btn-primary { background: #3B82F6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; }
     .btn-primary:active { background: #2563EB; }
     .btn-success { background: #10B981; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; flex: 1; }
@@ -466,6 +469,16 @@
       render();
     }
 
+    function removeQuickEntry(type) {
+      const index = entries.findIndex(e => e.type === type);
+      if (index === -1) return;
+      const entry = entries[index];
+      entries.splice(index, 1);
+      saveDataLocal(entries);
+      deleteEntryFromSupabase(entry.id);
+      render();
+    }
+
     function addDetailedEntry() {
       if (!newJob.company.trim()) return;
       const entry = { id: Date.now(), type: newJob.status, date: newJob.date, timestamp: new Date().toISOString(), company: newJob.company, position: newJob.position || null, notes: newJob.notes || null };
@@ -555,7 +568,7 @@
               <div class="title">Job Tracker</div>
               <span class="sync-status ${syncClass}">${syncLabel}</span>
             </div>
-            <div class="subtitle">Tap + to log today's activity</div>
+            <div class="subtitle">Tap +/- to adjust counts</div>
             ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(type => `
               <div class="tracker-row">
                 <div class="tracker-left">
@@ -563,6 +576,7 @@
                   <span class="tracker-label">${statusConfig[type].label}</span>
                 </div>
                 <div class="tracker-right">
+                  <button class="btn-minus" onclick="removeQuickEntry('${type}')" ${totals[type] === 0 ? 'disabled' : ''}>−</button>
                   <span class="tracker-count">${totals[type]}</span>
                   <button class="btn-add" onclick="addQuickEntry('${type}')">+</button>
                 </div>
