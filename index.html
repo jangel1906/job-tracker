@@ -130,26 +130,144 @@
     .daily-date { font-size: 0.875rem; color: #4B5563; }
     .daily-badges { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
     .mini-badge { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 0.25rem; }
+
+    .sync-status { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 9999px; }
+    .sync-synced { background: #D1FAE5; color: #059669; }
+    .sync-syncing { background: #DBEAFE; color: #2563EB; }
+    .sync-offline { background: #FEE2E2; color: #DC2626; }
+    .title-row { display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
   <div id="app"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    // Supabase configuration
+    const SUPABASE_URL = 'https://taauwsmpiplkrwenerab.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_9AOubR88F0nriAy4fksycg_YkSh5KbN';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const STORAGE_KEY = 'job-tracker-data-v1';
-    
-    function loadData() {
+    const DEVICE_ID_KEY = 'job-tracker-device-id';
+
+    // Generate or retrieve device ID
+    function getDeviceId() {
+      let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+      if (!deviceId) {
+        deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem(DEVICE_ID_KEY, deviceId);
+      }
+      return deviceId;
+    }
+
+    const deviceId = getDeviceId();
+    let syncStatus = 'syncing';
+
+    function loadDataLocal() {
       try {
         const data = localStorage.getItem(STORAGE_KEY);
         return data ? JSON.parse(data) : [];
       } catch (e) { return []; }
     }
-    
-    function saveData(entries) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+
+    function saveDataLocal(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
-    let entries = loadData();
+    async function loadDataFromSupabase() {
+      try {
+        const { data, error } = await supabase
+          .from('job_entries')
+          .select('*')
+          .eq('device_id', deviceId)
+          .order('timestamp', { ascending: false });
+
+        if (error) throw error;
+
+        const entries = data.map(row => ({
+          id: row.id,
+          type: row.type,
+          date: row.date,
+          timestamp: row.timestamp,
+          company: row.company,
+          position: row.position,
+          notes: row.notes
+        }));
+
+        saveDataLocal(entries);
+        syncStatus = 'synced';
+        return entries;
+      } catch (e) {
+        console.error('Supabase load error:', e);
+        syncStatus = 'offline';
+        return loadDataLocal();
+      }
+    }
+
+    async function saveEntryToSupabase(entry) {
+      try {
+        const { error } = await supabase
+          .from('job_entries')
+          .upsert({
+            id: entry.id,
+            device_id: deviceId,
+            type: entry.type,
+            date: entry.date,
+            timestamp: entry.timestamp,
+            company: entry.company,
+            position: entry.position,
+            notes: entry.notes
+          });
+
+        if (error) throw error;
+        syncStatus = 'synced';
+      } catch (e) {
+        console.error('Supabase save error:', e);
+        syncStatus = 'offline';
+      }
+      render();
+    }
+
+    async function deleteEntryFromSupabase(id) {
+      try {
+        const { error } = await supabase
+          .from('job_entries')
+          .delete()
+          .eq('id', id)
+          .eq('device_id', deviceId);
+
+        if (error) throw error;
+        syncStatus = 'synced';
+      } catch (e) {
+        console.error('Supabase delete error:', e);
+        syncStatus = 'offline';
+      }
+      render();
+    }
+
+    async function clearAllFromSupabase() {
+      try {
+        const { error } = await supabase
+          .from('job_entries')
+          .delete()
+          .eq('device_id', deviceId);
+
+        if (error) throw error;
+        syncStatus = 'synced';
+      } catch (e) {
+        console.error('Supabase clear error:', e);
+        syncStatus = 'offline';
+      }
+    }
+
+    let entries = loadDataLocal();
+
+    // Load from Supabase on startup
+    loadDataFromSupabase().then(data => {
+      entries = data;
+      render();
+    });
     let activeTab = 'tracker';
     let showForm = false;
     let newJob = { company: '', position: '', status: 'callback', notes: '', date: new Date().toISOString().split('T')[0] };
@@ -207,15 +325,19 @@
     }
 
     function addQuickEntry(type) {
-      entries.unshift({ id: Date.now(), type, date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), company: null, notes: null });
-      saveData(entries);
+      const entry = { id: Date.now(), type, date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), company: null, position: null, notes: null };
+      entries.unshift(entry);
+      saveDataLocal(entries);
+      saveEntryToSupabase(entry);
       render();
     }
 
     function addDetailedEntry() {
       if (!newJob.company.trim()) return;
-      entries.unshift({ id: Date.now(), type: newJob.status, date: newJob.date, timestamp: new Date().toISOString(), company: newJob.company, position: newJob.position || null, notes: newJob.notes || null });
-      saveData(entries);
+      const entry = { id: Date.now(), type: newJob.status, date: newJob.date, timestamp: new Date().toISOString(), company: newJob.company, position: newJob.position || null, notes: newJob.notes || null };
+      entries.unshift(entry);
+      saveDataLocal(entries);
+      saveEntryToSupabase(entry);
       newJob = { company: '', position: '', status: 'callback', notes: '', date: new Date().toISOString().split('T')[0] };
       showForm = false;
       render();
@@ -223,14 +345,16 @@
 
     function deleteEntry(id) {
       entries = entries.filter(e => e.id !== id);
-      saveData(entries);
+      saveDataLocal(entries);
+      deleteEntryFromSupabase(id);
       render();
     }
 
     function clearAll() {
       if (confirm('Clear all data?')) {
         entries = [];
-        saveData(entries);
+        saveDataLocal(entries);
+        clearAllFromSupabase();
         render();
       }
     }
@@ -259,9 +383,14 @@
 
       if (activeTab === 'tracker') {
         const responseRate = totals.applied > 0 ? Math.round(((totals.callback + totals.interview + totals.offer) / totals.applied) * 100) : 0;
+        const syncLabel = { synced: 'Synced', syncing: 'Syncing...', offline: 'Offline' }[syncStatus];
+        const syncClass = { synced: 'sync-synced', syncing: 'sync-syncing', offline: 'sync-offline' }[syncStatus];
         html += `
           <div class="card">
-            <div class="title">Job Tracker</div>
+            <div class="title-row">
+              <div class="title">Job Tracker</div>
+              <span class="sync-status ${syncClass}">${syncLabel}</span>
+            </div>
             <div class="subtitle">Tap + to log today's activity</div>
             ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(type => `
               <div class="tracker-row">
