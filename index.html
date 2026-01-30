@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Job Tracker">
+  <meta name="theme-color" content="#3B82F6">
+  <title>Job Tracker</title>
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%233B82F6' width='100' height='100' rx='20'/><text x='50' y='68' text-anchor='middle' fill='white' font-size='50' font-family='system-ui'>📋</text></svg>">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #F9FAFB; 
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+    }
+    @media (display-mode: standalone) { body { padding-top: env(safe-area-inset-top); } }
+    
+    .container { max-width: 28rem; margin: 0 auto; padding: 1rem; }
+    .card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1.25rem; margin-bottom: 1rem; }
+    
+    .tabs { background: white; border-bottom: 1px solid #E5E7EB; position: sticky; top: 0; z-index: 10; }
+    .tabs-inner { max-width: 28rem; margin: 0 auto; display: flex; }
+    .tab { flex: 1; padding: 1rem; font-size: 0.875rem; font-weight: 500; border: none; background: none; color: #6B7280; cursor: pointer; }
+    .tab.active { color: #3B82F6; border-bottom: 2px solid #3B82F6; }
+    
+    .title { font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 0.25rem; }
+    .subtitle { font-size: 0.875rem; color: #9CA3AF; margin-bottom: 1.25rem; }
+    .section-title { font-weight: 600; color: #374151; margin-bottom: 0.75rem; }
+    
+    .tracker-row { display: flex; align-items: center; justify-content: space-between; background: #F9FAFB; border-radius: 0.75rem; padding: 0.75rem; margin-bottom: 0.75rem; }
+    .tracker-left { display: flex; align-items: center; gap: 0.75rem; }
+    .tracker-right { display: flex; align-items: center; gap: 0.75rem; }
+    .dot { width: 0.75rem; height: 0.75rem; border-radius: 50%; }
+    .dot-blue { background: #3B82F6; }
+    .dot-purple { background: #8B5CF6; }
+    .dot-amber { background: #F59E0B; }
+    .dot-green { background: #10B981; }
+    .dot-red { background: #EF4444; }
+    .tracker-label { font-weight: 500; color: #374151; }
+    .tracker-count { font-size: 1.5rem; font-weight: 700; color: #1F2937; width: 2.5rem; text-align: right; }
+    
+    .btn-add { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: #3B82F6; color: white; border: none; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-add:active { background: #2563EB; }
+    .btn-primary { background: #3B82F6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; }
+    .btn-primary:active { background: #2563EB; }
+    .btn-success { background: #10B981; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; flex: 1; }
+    .btn-cancel { background: #E5E7EB; color: #4B5563; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; flex: 1; }
+    .btn-delete { background: none; border: none; color: #F87171; font-size: 0.75rem; cursor: pointer; margin-top: 0.5rem; }
+    .btn-clear { background: none; border: none; color: #9CA3AF; font-size: 0.875rem; cursor: pointer; width: 100%; padding: 0.5rem; margin-top: 1rem; }
+    .btn-clear:active { color: #EF4444; }
+    .btn-x { background: none; border: none; color: #D1D5DB; font-size: 1.25rem; cursor: pointer; padding: 0 0.25rem; }
+    .btn-x:active { color: #EF4444; }
+    
+    .badge { padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+    .badge-blue { background: #DBEAFE; color: #2563EB; }
+    .badge-purple { background: #EDE9FE; color: #7C3AED; }
+    .badge-amber { background: #FEF3C7; color: #D97706; }
+    .badge-green { background: #D1FAE5; color: #059669; }
+    .badge-red { background: #FEE2E2; color: #DC2626; }
+    
+    .activity-list { max-height: 16rem; overflow-y: auto; }
+    .activity-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #F9FAFB; }
+    .activity-left { display: flex; align-items: center; gap: 0.5rem; }
+    .activity-right { display: flex; align-items: center; gap: 0.5rem; }
+    .activity-date { font-size: 0.75rem; color: #9CA3AF; }
+    .activity-company { font-size: 0.875rem; color: #4B5563; }
+    
+    .chart-container { height: 8rem; display: flex; align-items: flex-end; justify-content: space-between; gap: 0.25rem; margin-bottom: 1.5rem; }
+    .chart-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; }
+    .chart-bar-area { width: 100%; height: 100px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .chart-bar { width: 100%; border-radius: 0.125rem 0.125rem 0 0; display: flex; flex-direction: column; overflow: hidden; }
+    .chart-bar-empty { width: 100%; height: 4px; background: #F3F4F6; border-radius: 0.125rem; }
+    .chart-label { font-size: 0.75rem; color: #9CA3AF; margin-top: 0.25rem; }
+    
+    .legend { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-bottom: 1rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.25rem; }
+    .legend-dot { width: 0.75rem; height: 0.75rem; border-radius: 0.125rem; }
+    .legend-text { font-size: 0.75rem; color: #6B7280; }
+    
+    .month-card { border: 1px solid #F3F4F6; border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; }
+    .month-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .month-title { font-weight: 600; color: #1F2937; }
+    .month-total { font-size: 0.875rem; color: #9CA3AF; }
+    .bar-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .bar-label { font-size: 0.75rem; color: #6B7280; width: 4rem; }
+    .bar-track { flex: 1; height: 0.75rem; background: #F3F4F6; border-radius: 9999px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 9999px; }
+    .bar-fill-blue { background: #3B82F6; }
+    .bar-fill-purple { background: #8B5CF6; }
+    .bar-fill-amber { background: #F59E0B; }
+    .bar-fill-green { background: #10B981; }
+    .bar-fill-red { background: #EF4444; }
+    .bar-value { font-size: 0.875rem; font-weight: 500; color: #374151; width: 1.5rem; text-align: right; }
+    
+    .form-area { background: #F9FAFB; border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; }
+    .input { width: 100%; padding: 0.75rem; border: 1px solid #E5E7EB; border-radius: 0.5rem; font-size: 0.875rem; margin-bottom: 0.5rem; }
+    .input:focus { outline: none; border-color: #3B82F6; }
+    .select { width: 100%; padding: 0.75rem; border: 1px solid #E5E7EB; border-radius: 0.5rem; font-size: 0.875rem; margin-bottom: 0.5rem; background: white; }
+    .textarea { width: 100%; padding: 0.75rem; border: 1px solid #E5E7EB; border-radius: 0.5rem; font-size: 0.875rem; margin-bottom: 0.5rem; resize: none; font-family: inherit; }
+    .form-buttons { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    
+    .log-entry { border: 1px solid #F3F4F6; border-radius: 0.75rem; padding: 0.75rem; margin-bottom: 0.75rem; }
+    .log-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem; }
+    .log-company { font-weight: 500; color: #1F2937; }
+    .log-position { font-size: 0.75rem; color: #9CA3AF; }
+    .log-date { font-size: 0.75rem; color: #9CA3AF; margin-bottom: 0.25rem; }
+    .log-notes { font-size: 0.875rem; color: #4B5563; background: #F9FAFB; border-radius: 0.5rem; padding: 0.5rem; }
+    
+    .stats-row { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #F3F4F6; text-align: center; }
+    .stats-label { font-size: 0.875rem; color: #9CA3AF; }
+    .stats-value { font-size: 0.875rem; font-weight: 600; color: #4B5563; }
+    
+    .text-center { text-align: center; }
+    .text-muted { color: #9CA3AF; font-size: 0.875rem; }
+    .py-4 { padding: 1rem 0; }
+    .py-8 { padding: 2rem 0; }
+    .flex-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    
+    .fill-blue { background: #3B82F6; }
+    .fill-purple { background: #8B5CF6; }
+    .fill-amber { background: #F59E0B; }
+    .fill-green { background: #10B981; }
+    .fill-red { background: #EF4444; }
+    
+    .daily-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #F9FAFB; }
+    .daily-date { font-size: 0.875rem; color: #4B5563; }
+    .daily-badges { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
+    .mini-badge { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 0.25rem; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    const STORAGE_KEY = 'job-tracker-data-v1';
+    
+    function loadData() {
+      try {
+        const data = localStorage.getItem(STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+      } catch (e) { return []; }
+    }
+    
+    function saveData(entries) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    let entries = loadData();
+    let activeTab = 'tracker';
+    let showForm = false;
+    let newJob = { company: '', position: '', status: 'callback', notes: '', date: new Date().toISOString().split('T')[0] };
+
+    const statusConfig = {
+      applied: { label: 'Applied', dotClass: 'dot-blue', badgeClass: 'badge-blue', fillClass: 'fill-blue', barClass: 'bar-fill-blue' },
+      callback: { label: 'Callback', dotClass: 'dot-purple', badgeClass: 'badge-purple', fillClass: 'fill-purple', barClass: 'bar-fill-purple' },
+      interview: { label: 'Interview', dotClass: 'dot-amber', badgeClass: 'badge-amber', fillClass: 'fill-amber', barClass: 'bar-fill-amber' },
+      offer: { label: 'Offer', dotClass: 'dot-green', badgeClass: 'badge-green', fillClass: 'fill-green', barClass: 'bar-fill-green' },
+      rejected: { label: 'Rejected', dotClass: 'dot-red', badgeClass: 'badge-red', fillClass: 'fill-red', barClass: 'bar-fill-red' }
+    };
+
+    function getTotals() {
+      return {
+        applied: entries.filter(e => e.type === 'applied').length,
+        callback: entries.filter(e => e.type === 'callback').length,
+        interview: entries.filter(e => e.type === 'interview').length,
+        offer: entries.filter(e => e.type === 'offer').length,
+        rejected: entries.filter(e => e.type === 'rejected').length
+      };
+    }
+
+    function getDailyData() {
+      const days = {};
+      const today = new Date();
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().split('T')[0];
+        days[key] = { applied: 0, callback: 0, interview: 0, offer: 0, rejected: 0 };
+      }
+      entries.forEach(e => { if (days[e.date]) days[e.date][e.type]++; });
+      return Object.entries(days);
+    }
+
+    function getMonthlyData() {
+      const months = {};
+      entries.forEach(e => {
+        const month = e.date.substring(0, 7);
+        if (!months[month]) months[month] = { applied: 0, callback: 0, interview: 0, offer: 0, rejected: 0 };
+        months[month][e.type]++;
+      });
+      return Object.entries(months).sort((a, b) => b[0].localeCompare(a[0]));
+    }
+
+    function formatMonth(ym) {
+      const [y, m] = ym.split('-');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[parseInt(m) - 1]} ${y}`;
+    }
+
+    function formatDay(d) {
+      const date = new Date(d + 'T12:00:00');
+      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function addQuickEntry(type) {
+      entries.unshift({ id: Date.now(), type, date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), company: null, notes: null });
+      saveData(entries);
+      render();
+    }
+
+    function addDetailedEntry() {
+      if (!newJob.company.trim()) return;
+      entries.unshift({ id: Date.now(), type: newJob.status, date: newJob.date, timestamp: new Date().toISOString(), company: newJob.company, position: newJob.position || null, notes: newJob.notes || null });
+      saveData(entries);
+      newJob = { company: '', position: '', status: 'callback', notes: '', date: new Date().toISOString().split('T')[0] };
+      showForm = false;
+      render();
+    }
+
+    function deleteEntry(id) {
+      entries = entries.filter(e => e.id !== id);
+      saveData(entries);
+      render();
+    }
+
+    function clearAll() {
+      if (confirm('Clear all data?')) {
+        entries = [];
+        saveData(entries);
+        render();
+      }
+    }
+
+    function setTab(tab) { activeTab = tab; render(); }
+    function toggleForm() { showForm = !showForm; render(); }
+    function updateNewJob(field, value) { newJob[field] = value; render(); }
+
+    function render() {
+      const totals = getTotals();
+      const dailyData = getDailyData();
+      const monthlyData = getMonthlyData();
+      const maxDaily = Math.max(...dailyData.map(([_, d]) => d.applied + d.callback + d.interview + d.offer + d.rejected), 1);
+      const app = document.getElementById('app');
+      
+      let html = `
+        <div class="tabs">
+          <div class="tabs-inner">
+            ${['tracker', 'daily', 'monthly', 'log'].map(tab => `
+              <button onclick="setTab('${tab}')" class="tab ${activeTab === tab ? 'active' : ''}">${tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="container">
+      `;
+
+      if (activeTab === 'tracker') {
+        const responseRate = totals.applied > 0 ? Math.round(((totals.callback + totals.interview + totals.offer) / totals.applied) * 100) : 0;
+        html += `
+          <div class="card">
+            <div class="title">Job Tracker</div>
+            <div class="subtitle">Tap + to log today's activity</div>
+            ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(type => `
+              <div class="tracker-row">
+                <div class="tracker-left">
+                  <div class="dot ${statusConfig[type].dotClass}"></div>
+                  <span class="tracker-label">${statusConfig[type].label}</span>
+                </div>
+                <div class="tracker-right">
+                  <span class="tracker-count">${totals[type]}</span>
+                  <button class="btn-add" onclick="addQuickEntry('${type}')">+</button>
+                </div>
+              </div>
+            `).join('')}
+            ${totals.applied > 0 ? `<div class="stats-row"><span class="stats-label">Response Rate: </span><span class="stats-value">${responseRate}%</span></div>` : ''}
+          </div>
+          <div class="card">
+            <div class="section-title">Recent Activity</div>
+            ${entries.length === 0 ? '<p class="text-muted text-center py-4">No entries yet</p>' : `
+              <div class="activity-list">
+                ${entries.slice(0, 20).map(e => `
+                  <div class="activity-item">
+                    <div class="activity-left">
+                      <span class="badge ${statusConfig[e.type].badgeClass}">${statusConfig[e.type].label}</span>
+                      ${e.company ? `<span class="activity-company">${e.company}</span>` : ''}
+                    </div>
+                    <div class="activity-right">
+                      <span class="activity-date">${e.date}</span>
+                      <button class="btn-x" onclick="deleteEntry(${e.id})">×</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+        `;
+      }
+
+      if (activeTab === 'daily') {
+        html += `
+          <div class="card">
+            <div class="title">Last 14 Days</div>
+            <div class="subtitle">Daily application activity</div>
+            <div class="chart-container">
+              ${dailyData.map(([date, data]) => {
+                const total = data.applied + data.callback + data.interview + data.offer + data.rejected;
+                const height = total > 0 ? (total / maxDaily) * 100 : 0;
+                return `
+                  <div class="chart-bar-wrapper">
+                    <div class="chart-bar-area">
+                      ${total > 0 ? `
+                        <div class="chart-bar" style="height: ${height}%;">
+                          ${data.rejected > 0 ? `<div class="fill-red" style="flex: ${data.rejected};"></div>` : ''}
+                          ${data.offer > 0 ? `<div class="fill-green" style="flex: ${data.offer};"></div>` : ''}
+                          ${data.interview > 0 ? `<div class="fill-amber" style="flex: ${data.interview};"></div>` : ''}
+                          ${data.callback > 0 ? `<div class="fill-purple" style="flex: ${data.callback};"></div>` : ''}
+                          ${data.applied > 0 ? `<div class="fill-blue" style="flex: ${data.applied};"></div>` : ''}
+                        </div>
+                      ` : '<div class="chart-bar-empty"></div>'}
+                    </div>
+                    <span class="chart-label">${new Date(date + 'T12:00:00').getDate()}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            <div class="legend">
+              ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(type => `
+                <div class="legend-item">
+                  <div class="legend-dot ${statusConfig[type].dotClass}"></div>
+                  <span class="legend-text">${statusConfig[type].label}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="max-height: 12rem; overflow-y: auto;">
+              ${dailyData.slice().reverse().filter(([_, d]) => d.applied + d.callback + d.interview + d.offer + d.rejected > 0).map(([date, data]) => `
+                <div class="daily-item">
+                  <span class="daily-date">${formatDay(date)}</span>
+                  <div class="daily-badges">
+                    ${data.applied > 0 ? `<span class="mini-badge badge-blue">${data.applied}</span>` : ''}
+                    ${data.callback > 0 ? `<span class="mini-badge badge-purple">${data.callback}</span>` : ''}
+                    ${data.interview > 0 ? `<span class="mini-badge badge-amber">${data.interview}</span>` : ''}
+                    ${data.offer > 0 ? `<span class="mini-badge badge-green">${data.offer}</span>` : ''}
+                    ${data.rejected > 0 ? `<span class="mini-badge badge-red">${data.rejected}</span>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      if (activeTab === 'monthly') {
+        html += `
+          <div class="card">
+            <div class="title">Monthly Summary</div>
+            <div class="subtitle">Applications by month</div>
+            ${monthlyData.length === 0 ? '<p class="text-muted text-center py-8">No data yet</p>' : monthlyData.map(([month, data]) => {
+              const total = data.applied + data.callback + data.interview + data.offer + data.rejected;
+              const maxInMonth = Math.max(data.applied, data.callback, data.interview, data.offer, data.rejected, 1);
+              return `
+                <div class="month-card">
+                  <div class="month-header">
+                    <span class="month-title">${formatMonth(month)}</span>
+                    <span class="month-total">${total} total</span>
+                  </div>
+                  ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(type => `
+                    <div class="bar-row">
+                      <span class="bar-label">${statusConfig[type].label}</span>
+                      <div class="bar-track"><div class="bar-fill ${statusConfig[type].barClass}" style="width: ${(data[type] / maxInMonth) * 100}%;"></div></div>
+                      <span class="bar-value">${data[type]}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
+
+      if (activeTab === 'log') {
+        const detailedEntries = entries.filter(e => e.company);
+        html += `
+          <div class="card">
+            <div class="flex-header">
+              <div>
+                <div class="title" style="font-size: 1rem;">Detailed Log</div>
+                <div class="subtitle" style="margin-bottom: 0;">Document callbacks & interviews</div>
+              </div>
+              <button class="btn-primary" onclick="toggleForm()">+ Add</button>
+            </div>
+            ${showForm ? `
+              <div class="form-area">
+                <input type="text" class="input" placeholder="Company name *" value="${newJob.company}" oninput="updateNewJob('company', this.value)">
+                <input type="text" class="input" placeholder="Position (optional)" value="${newJob.position}" oninput="updateNewJob('position', this.value)">
+                <select class="select" onchange="updateNewJob('status', this.value)">
+                  ${['applied', 'callback', 'interview', 'offer', 'rejected'].map(s => `<option value="${s}" ${newJob.status === s ? 'selected' : ''}>${statusConfig[s].label}</option>`).join('')}
+                </select>
+                <textarea class="textarea" rows="2" placeholder="Notes (recruiter, date, etc.)" oninput="updateNewJob('notes', this.value)">${newJob.notes}</textarea>
+                <input type="date" class="input" value="${newJob.date}" onchange="updateNewJob('date', this.value)">
+                <div class="form-buttons">
+                  <button class="btn-success" onclick="addDetailedEntry()">Save</button>
+                  <button class="btn-cancel" onclick="toggleForm()">Cancel</button>
+                </div>
+              </div>
+            ` : ''}
+            ${detailedEntries.length === 0 ? '<p class="text-muted text-center py-8">No detailed entries yet</p>' : detailedEntries.map(e => `
+              <div class="log-entry">
+                <div class="log-header">
+                  <div>
+                    <div class="log-company">${e.company}</div>
+                    ${e.position ? `<div class="log-position">${e.position}</div>` : ''}
+                  </div>
+                  <span class="badge ${statusConfig[e.type].badgeClass}">${statusConfig[e.type].label}</span>
+                </div>
+                <div class="log-date">${e.date}</div>
+                ${e.notes ? `<div class="log-notes">${e.notes}</div>` : ''}
+                <button class="btn-delete" onclick="deleteEntry(${e.id})">Delete</button>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      html += `<button class="btn-clear" onclick="clearAll()">Clear All Data</button></div>`;
+      app.innerHTML = html;
+    }
+
+    render();
+  </script>
+</body>
+</html>
